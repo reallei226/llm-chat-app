@@ -124,7 +124,7 @@ async function handleGeminiChatRequest(
     });
   }
 
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
   // Transform messages to Gemini format
   const contents = messages
@@ -163,44 +163,32 @@ async function handleGeminiChatRequest(
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
 
-  // Process the stream from Gemini
+  // Process the stream from Gemini (which is now SSE)
   const processStream = async () => {
     let buffer = "";
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
-      
-      // Gemini's streaming response is a series of JSON objects, sometimes multiple in one chunk.
-      // They are not newline-separated, so we need to find the boundaries.
-      // The response is wrapped in `[` and `]` for the whole stream.
-      buffer = buffer.replace(/^\[\s*,?/, "").replace(/,\s*\]$/, "");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep the last partial line in the buffer
 
-      let jsonEnd = buffer.lastIndexOf("}");
-      if (jsonEnd !== -1) {
-        let jsonStart = buffer.lastIndexOf("{", jsonEnd);
-        if (jsonStart !== -1) {
-          const jsonObjectsStr = buffer.substring(0, jsonEnd + 1);
-          buffer = buffer.substring(jsonEnd + 1);
-
-          const jsonObjects = jsonObjectsStr.split('},{').map((str, i, arr) => {
-            if (i > 0) str = '{' + str;
-            if (i < arr.length - 1) str = str + '}';
-            return str;
-          });
-
-          for (const jsonObjStr of jsonObjects) {
-            try {
-              const geminiChunk = JSON.parse(jsonObjStr);
-              const text = geminiChunk?.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (text) {
-                const sseFormattedChunk = `data: ${JSON.stringify({ response: text })}\n\n`;
-                await writer.write(encoder.encode(sseFormattedChunk));
-              }
-            } catch (e) {
-              console.error("Error parsing Gemini JSON chunk:", e, "Chunk:", jsonObjStr);
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.substring(6);
+          try {
+            const geminiChunk = JSON.parse(jsonStr);
+            const text = geminiChunk?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              // Re-format into the SSE format our frontend expects
+              const sseFormattedChunk = `data: ${JSON.stringify({ response: text })}\n\n`;
+              await writer.write(encoder.encode(sseFormattedChunk));
             }
+          } catch (e) {
+            console.error("Error parsing Gemini SSE data chunk:", e, "Chunk:", jsonStr);
           }
         }
       }
