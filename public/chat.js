@@ -9,6 +9,9 @@ const chatMessages = document.getElementById("chat-messages");
 const userInput = document.getElementById("user-input");
 const sendButton = document.getElementById("send-button");
 const typingIndicator = document.getElementById("typing-indicator");
+const modelSelect = document.getElementById("model-select");
+const geminiKeyContainer = document.getElementById("gemini-key-container");
+const geminiApiKey = document.getElementById("gemini-api-key");
 
 // Chat state
 let chatHistory = [
@@ -36,6 +39,15 @@ userInput.addEventListener("keydown", function (e) {
 
 // Send button click handler
 sendButton.addEventListener("click", sendMessage);
+
+// Model select change handler
+modelSelect.addEventListener("change", () => {
+  if (modelSelect.value.startsWith("gemini")) {
+    geminiKeyContainer.style.display = "flex";
+  } else {
+    geminiKeyContainer.style.display = "none";
+  }
+});
 
 /**
  * Sends a message to the chat API and processes the response
@@ -82,6 +94,8 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         messages: chatHistory,
+        model: modelSelect.value,
+        apiKey: geminiApiKey.value,
       }),
     });
 

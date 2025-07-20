@@ -45,6 +45,38 @@
         color: var(--primary-color);
       }
 
+      .settings-container {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background-color: var(--light-bg);
+      }
+
+      .settings-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .settings-row label {
+        margin-right: 1rem;
+        font-weight: 500;
+        width: 120px;
+      }
+
+      .settings-row select,
+      .settings-row input {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+      }
+
+      #gemini-key-container {
+        display: none;
+      }
+
       .chat-container {
         display: flex;
         flex-direction: column;
@@ -141,6 +173,27 @@
       <h1>Cloudflare AI Chat</h1>
       <p>Powered by Cloudflare Workers AI</p>
     </header>
+
+    <div class="settings-container">
+      <div class="settings-row">
+        <label for="model-select">AI Model:</label>
+        <select id="model-select">
+          <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast" selected>
+            Llama 3.3 (Cloudflare)
+          </option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
+        </select>
+      </div>
+      <div class="settings-row" id="gemini-key-container">
+        <label for="gemini-api-key">Gemini API Key:</label>
+        <input
+          type="password"
+          id="gemini-api-key"
+          placeholder="Enter your Google AI API Key"
+        />
+      </div>
+    </div>
 
     <div class="chat-container">
       <div id="chat-messages" class="chat-messages">

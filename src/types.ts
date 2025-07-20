@@ -21,3 +21,12 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
+
+/**
+ * Represents the request body for the /api/chat endpoint.
+ */
+export interface ChatRequest {
+  messages: ChatMessage[];
+  model?: string;
+  apiKey?: string;
+}
