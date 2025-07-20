@@ -37,7 +37,7 @@ export default {
     if (url.pathname === "/api/chat") {
       // Handle POST requests for chat
       if (request.method === "POST") {
-        return handleChatRequest(request, env);
+        return handleChatRequest(request, env, ctx);
       }
 
       // Method not allowed for other request types
@@ -55,6 +55,7 @@ export default {
 async function handleChatRequest(
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   try {
     // Parse JSON request body
@@ -66,7 +67,7 @@ async function handleChatRequest(
     }
 
     if (model.startsWith("gemini")) {
-      return handleGeminiChatRequest(messages, model, apiKey);
+      return handleGeminiChatRequest(messages, model, apiKey, ctx);
     } else {
       return handleCloudflareAIRequest(messages, model, env);
     }
@@ -116,6 +117,7 @@ async function handleGeminiChatRequest(
   messages: ChatMessage[],
   model: string,
   apiKey: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key is required for Gemini models" }), {
@@ -196,10 +198,10 @@ async function handleGeminiChatRequest(
     writer.close();
   };
 
-  processStream();
+  ctx.waitUntil(processStream());
 
   const response: Response = new Response(readable, {
     headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
   });
-  return response as any;
+  return response;
 }
