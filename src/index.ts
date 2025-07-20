@@ -158,6 +158,14 @@ async function handleGeminiChatRequest(
     });
   }
 
+  // 自动插入 IP 检查：诊断 Cloudflare Workers 出口 IP 的地理位置
+  try {
+    const ipInfo = await fetch('https://ipinfo.io/json').then(res => res.json());
+    console.log('[handleGeminiChatRequest] Cloudflare Worker 出口 IP 信息:', ipInfo);
+  } catch (error) {
+    console.error('[handleGeminiChatRequest] IP 检查失败:', error);
+  }
+
   const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
   // Transform messages to Gemini format
