@@ -108,6 +108,7 @@ async function sendMessage() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let responseText = "";
+    let buffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -116,24 +117,35 @@ async function sendMessage() {
         break;
       }
 
-      // Decode chunk
-      const chunk = decoder.decode(value, { stream: true });
+      // Decode chunk and add to buffer
+      buffer += decoder.decode(value, { stream: true });
 
       // Process SSE format
-      const lines = chunk.split("\n");
-      for (const line of lines) {
-        try {
-          const jsonData = JSON.parse(line);
-          if (jsonData.response) {
-            // Append new content to existing text
-            responseText += jsonData.response;
-            assistantMessageEl.querySelector("p").textContent = responseText;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep incomplete line in buffer
 
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.substring(6);
+          if (jsonStr.trim() === "") continue; // Skip empty data lines
+          
+          try {
+            const jsonData = JSON.parse(jsonStr);
+            if (jsonData.response) {
+              // Append new content to existing text
+              responseText += jsonData.response;
+              assistantMessageEl.querySelector("p").textContent = responseText;
+
+              // Scroll to bottom
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else if (jsonData.error) {
+              // Handle error from server
+              assistantMessageEl.querySelector("p").textContent = `Error: ${jsonData.error}`;
+              break;
+            }
+          } catch (e) {
+            console.error("Error parsing JSON:", e, "Line:", jsonStr);
           }
-        } catch (e) {
-          console.error("Error parsing JSON:", e);
         }
       }
     }

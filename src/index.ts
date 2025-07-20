@@ -92,21 +92,43 @@ async function handleCloudflareAIRequest(
   model: string,
   env: Env,
 ): Promise<Response> {
-  const response = await env.AI.run(
-    model as any, // Use type assertion to bypass the strict type check
-    {
-      messages,
-      max_tokens: 4096,
-      stream: true,
-    },
-    {
-      // The returnRawResponse option is not used here because we want the SDK to handle the SSE stream.
-      // When stream: true, the SDK automatically returns a Response object with the correct SSE headers.
-    },
-  );
+  try {
+    const response = await env.AI.run(
+      model as any, // Use type assertion to bypass the strict type check
+      {
+        messages,
+        max_tokens: 4096,
+        stream: true,
+      },
+      {
+        // The returnRawResponse option is not used here because we want the SDK to handle the SSE stream.
+        // When stream: true, the SDK automatically returns a Response object with the correct SSE headers.
+      },
+    );
 
-  // The SDK response is already a streaming Response object, so we can return it directly.
-  return response;
+    // Ensure we return a proper Response object
+    if (response instanceof Response) {
+      return response;
+    } else {
+      // If the response is not a Response object, convert it to one
+      console.warn("AI.run() did not return a Response object, converting...");
+      return new Response(JSON.stringify(response), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+  } catch (error) {
+    console.error("Error in handleCloudflareAIRequest:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Failed to process AI request", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      }),
+      {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  }
 }
 
 
@@ -167,35 +189,43 @@ async function handleGeminiChatRequest(
 
   // Process the stream from Gemini (which is now SSE)
   const processStream = async () => {
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
+    try {
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || ""; // Keep the last partial line in the buffer
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep the last partial line in the buffer
 
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const jsonStr = line.substring(6);
-          try {
-            const geminiChunk = JSON.parse(jsonStr);
-            const text = geminiChunk?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              // Re-format into the SSE format our frontend expects
-              const sseFormattedChunk = `data: ${JSON.stringify({ response: text })}\n\n`;
-              await writer.write(encoder.encode(sseFormattedChunk));
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.substring(6);
+            try {
+              const geminiChunk = JSON.parse(jsonStr);
+              const text = geminiChunk?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                // Re-format into the SSE format our frontend expects
+                const sseFormattedChunk = `data: ${JSON.stringify({ response: text })}\n\n`;
+                await writer.write(encoder.encode(sseFormattedChunk));
+              }
+            } catch (e) {
+              console.error("Error parsing Gemini SSE data chunk:", e, "Chunk:", jsonStr);
             }
-          } catch (e) {
-            console.error("Error parsing Gemini SSE data chunk:", e, "Chunk:", jsonStr);
           }
         }
       }
+    } catch (error) {
+      console.error("Error in Gemini stream processing:", error);
+      // Send error message to client
+      const errorChunk = `data: ${JSON.stringify({ error: "Stream processing failed" })}\n\n`;
+      await writer.write(encoder.encode(errorChunk));
+    } finally {
+      writer.close();
     }
-    writer.close();
   };
 
   ctx.waitUntil(processStream());
