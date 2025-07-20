@@ -61,14 +61,23 @@ async function handleChatRequest(
     // Parse JSON request body
     const { messages = [], model = MODEL_ID, apiKey = "" } = (await request.json()) as ChatRequest;
 
+    // 故障定位日志：收到的参数
+    console.log("[handleChatRequest] 收到请求", {
+      model,
+      apiKey: apiKey ? "***" : undefined,
+      messages,
+    });
+
     // Add system prompt if not present
     if (!messages.some((msg) => msg.role === "system")) {
       messages.unshift({ role: "system", content: SYSTEM_PROMPT });
     }
 
     if (model.startsWith("gemini")) {
+      console.log("[handleChatRequest] 走 Gemini 分支，model:", model);
       return handleGeminiChatRequest(messages, model, apiKey, ctx);
     } else {
+      console.log("[handleChatRequest] 走 Cloudflare 分支，model:", model);
       return handleCloudflareAIRequest(messages, model, env);
     }
   } catch (error) {
@@ -93,6 +102,7 @@ async function handleCloudflareAIRequest(
   env: Env,
 ): Promise<Response> {
   try {
+    console.log("[handleCloudflareAIRequest] 请求 Cloudflare Workers AI，model:", model);
     const response = await env.AI.run(
       model as any, // Use type assertion to bypass the strict type check
       {
@@ -165,15 +175,22 @@ async function handleGeminiChatRequest(
     system_instruction: systemPrompt ? { parts: [{ text: systemPrompt.content }] } : undefined,
   };
 
+  // 故障定位日志：Gemini 请求体
+  console.log("[handleGeminiChatRequest] 请求 Gemini，model:", model, "apiKey:", apiKey ? "***" : undefined);
+  console.log("[handleGeminiChatRequest] 请求体:", geminiRequest);
+
   const geminiResponse = await fetch(GEMINI_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(geminiRequest),
   });
 
+  // 故障定位日志：Gemini 响应状态
+  console.log("[handleGeminiChatRequest] Gemini 响应状态:", geminiResponse.status);
+
   if (!geminiResponse.ok || !geminiResponse.body) {
     const errorBody = await geminiResponse.text();
-    console.error("Gemini API error:", errorBody);
+    console.error("[handleGeminiChatRequest] Gemini API error:", errorBody);
     return new Response(JSON.stringify({ error: "Failed to fetch from Gemini API", details: errorBody }), {
       status: geminiResponse.status,
       headers: { "content-type": "application/json" },

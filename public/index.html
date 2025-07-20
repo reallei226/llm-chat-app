@@ -178,10 +178,13 @@
       <div class="settings-row">
         <label for="model-select">AI Model:</label>
         <select id="model-select">
+          <!-- Cloudflare Llama3 模型 -->
           <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast" selected>
             Llama 3.3 (Cloudflare)
           </option>
+          <!-- Google Gemini 2.5 Flash 模型，value 必须以 gemini- 开头 -->
           <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+          <!-- Google Gemini 2.5 Pro 模型，value 必须以 gemini- 开头 -->
           <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
         </select>
       </div>
